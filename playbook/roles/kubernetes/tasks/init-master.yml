@@ -1,0 +1,43 @@
+---
+- name: Check if Kubernetes master is already initialized
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: reg_init
+
+- name: Initialize Kubernetes master
+  command:
+    cmd: >
+      kubeadm init
+      --kubernetes-version {{ kubernetes_version }}
+      --apiserver-advertise-address={{ ansible_all_ipv4_addresses | ipaddr(network_cidr) | first }}
+      --node-name {{ ansible_hostname }}
+      --control-plane-endpoint {{ kubernetes_endpoint }}:{{ kubernetes_port }}
+      --upload-certs
+    creates: /etc/kubernetes/admin.conf
+
+- name: Create Kubernetes configuration folder
+  file:
+    path: '{{ kubernetes_config }}'
+    state: directory
+  become: false
+
+- name: Get Kubernetes configuration
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: '{{ kubernetes_config }}/config'
+    owner: '{{ ansible_user }}'
+    group: '{{ ansible_user }}'
+    mode: 'u=rw,g=r,o=r'
+    remote_src: yes
+
+- name: Deploy Kubernetes manifests
+  command: 'kubectl apply --filename {{ item }}'
+  become: false
+  with_items: '{{ kubernetes_manifests }}'
+  when: not reg_init.stat.exists
+
+- name: Copy Kubernetes configuration
+  fetch:
+    src: /etc/kubernetes/admin.conf
+    dest: '../out/kube/config'
+    flat: true

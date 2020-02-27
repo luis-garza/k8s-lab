@@ -1,0 +1,14 @@
+tcp:
+  routers:
+    kubernetes:
+      entryPoints:
+        - 'kubernetes'
+      rule: 'HostSNI(`*`)'
+      service: 'kubernetes'
+  services:
+    kubernetes:
+      loadBalancer:
+        servers:
+{% for host in groups.master %}
+          - address: '{{ hostvars[host].inventory_hostname_short }}:{{ traefik_port_kubernetes }}'
+{% endfor %}

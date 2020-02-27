@@ -1,0 +1,40 @@
+---
+- name: Remove legacy packages
+  apt:
+    name: '{{ item }}'
+    state: absent
+    purge: yes
+    autoremove: yes
+  with_items:
+    - docker
+    - docker-engine
+    - docker.io
+    - containerd
+    - runc
+
+- name: Add Docker GPG key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: Add Docker repository
+  apt_repository:
+    repo: 'deb https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable'
+    state: present
+
+- name: Install Docker packages
+  apt:
+    update_cache: yes
+    name: '{{ item }}'
+    state: present
+    autoremove: yes
+  with_items:
+    - docker-ce
+    - docker-ce-cli
+    - containerd.io
+
+- name: Add user to Docker group
+  user:
+    name: '{{ ansible_user }}'
+    groups: [docker]
+    append: yes

@@ -1,0 +1,37 @@
+---
+- name: Install Docker dependencies
+  pip:
+    name: docker
+    state: present
+  become: true
+
+- name: Restart Docker service
+  service:
+    name: docker
+    state: started
+  changed_when: false
+
+- name: Create Traefik configuration folder
+  file:
+    path: /etc/traefik
+    state: directory
+
+- name: Setup Traefik configuration
+  template:
+    src: traefik.yml.j2
+    dest: /etc/traefik/traefik.yml
+
+- name: Setup Traefik Kubernetes service
+  template:
+    src: kubernetes.yml.j2
+    dest: /etc/traefik/kubernetes.yml
+
+- name: Start Traefik service container
+  docker_container:
+    name: traefik
+    image: traefik:2.1
+    detach: yes
+    volumes:
+      - '/etc/traefik:/etc/traefik'
+    network_mode: host
+    restart_policy: unless-stopped

@@ -1,0 +1,96 @@
+Vagrant.configure("2") do |config|
+
+    prefix = "k8s"
+    box = "ubuntu/bionic64"
+    network_id = "10.0.5"
+    network_mask = "24"
+    service_cidr = "10.96.0.0/12"
+    netplan_route = <<-EOF
+      routes:
+        - to: #{service_cidr}
+          via: #{network_id}.1
+    EOF
+    shell_provisioner = <<-SHELL
+    apt-get update
+    apt-get install --yes python-minimal
+    echo "#{netplan_route}" >> /etc/netplan/50-vagrant.yaml
+    netplan apply
+    SHELL
+
+    masters = {
+        :name => "#{prefix}-master",
+        :cpu => 2,
+        :memory => 4096,
+        :offset => 10,
+        :count => 1
+    }
+
+    nodes = {
+        :name => "#{prefix}-node",
+        :cpu => 1,
+        :memory => 2048,
+        :offset => 20,
+        :count => 2
+    }
+
+    traefik = {
+        :name => "#{prefix}-traefik",
+        :cpu => 1,
+        :memory => 1024,
+        :offset => 30
+    }
+
+    (1..masters[:count]).each do |index|
+        config.vm.define "#{masters[:name]}#{index}" do |master|
+            master.vm.box = box
+            master.vm.hostname = "#{masters[:name]}#{index}"
+            master.vm.network "private_network", ip: "#{network_id}.#{masters[:offset] +index -1}", netmask: network_mask
+            master.vm.provider "virtualbox" do |vb|
+                vb.name = "#{masters[:name]}#{index}"
+                vb.customize ["modifyvm", :id, "--memory", masters[:memory]]
+                vb.customize ["modifyvm", :id, "--cpus", masters[:cpu]]
+            end
+            master.vm.provision "shell", inline: shell_provisioner
+        end
+    end
+
+    (1..nodes[:count]).each do |index|
+        config.vm.define "#{nodes[:name]}#{index}" do |node|
+            node.vm.box = box
+            node.vm.hostname = "#{nodes[:name]}#{index}"
+            node.vm.network "private_network", ip: "#{network_id}.#{nodes[:offset] +index -1}", netmask: network_mask
+            node.vm.provider "virtualbox" do |vb|
+                vb.name = "#{nodes[:name]}#{index}"
+                vb.customize ["modifyvm", :id, "--memory", nodes[:memory]]
+                vb.customize ["modifyvm", :id, "--cpus", nodes[:cpu]]
+            end
+
+            node.vm.provision "shell", inline: shell_provisioner
+        end
+    end
+
+    config.vm.define traefik[:name] do |lb|
+        lb.vm.box = box
+        lb.vm.hostname = traefik[:name]
+        lb.vm.network "forwarded_port", guest: 6443, host: 6443
+        lb.vm.network "forwarded_port", guest: 8080, host: 8080
+        lb.vm.network "private_network", ip: "#{network_id}.#{traefik[:offset]}", netmask: network_mask
+        lb.vm.provider "virtualbox" do |vb|
+            vb.name = traefik[:name]
+            vb.customize ["modifyvm", :id, "--memory", traefik[:memory]]
+            vb.customize ["modifyvm", :id, "--cpus", traefik[:cpu]]
+        end
+        lb.vm.provision "shell", inline: shell_provisioner
+        lb.vm.provision "ansible" do |ansible|
+            ansible.playbook = "../playbook/site.yml"
+            ansible.limit = "all"
+            ansible.groups = {
+                "master" => ["#{masters[:name]}[1:#{masters[:count]}]"],
+                "node" => ["#{nodes[:name]}[1:#{nodes[:count]}]"],
+                "traefik" => [traefik[:name]],
+                "all:vars" => {"network_cidr" => "#{network_id}.0/#{network_mask}"}
+            }
+      end
+    end
+
+end

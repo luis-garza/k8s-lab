@@ -1,0 +1,9 @@
+---
+kubernetes_version: 'stable'
+kubernetes_endpoint: '{{ ansible_hostname }}'
+kubernetes_port: '6443'
+kubernetes_config: '/home/{{ ansible_user }}/.kube'
+kubernetes_manifests:
+  # - 'https://docs.projectcalico.org/v3.13/manifests/calico.yaml'
+  - 'https://cloud.weave.works/k8s/net'
+  - 'https://raw.githubusercontent.com/kubernetes/dashboard/v2.0.0-rc6/aio/deploy/recommended.yaml'

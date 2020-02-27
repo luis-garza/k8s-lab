@@ -1,0 +1,12 @@
+---
+- name: Get Kubernetes node join command
+  command: 'kubeadm token create --print-join-command'
+  changed_when: false
+  run_once: true
+  delegate_to: '{{ groups.master[0] }}'
+  register: reg_join
+
+- name: Join Kubernetes node
+  command:
+    cmd: '{{ reg_join.stdout }}'
+    creates: /etc/kubernetes/kubelet.conf

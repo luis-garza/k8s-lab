@@ -1,0 +1,9 @@
+---
+- hosts:
+    - master
+    - node
+  vars:
+    kubernetes_endpoint: '{{ hostvars[groups.traefik[0]].inventory_hostname }}'
+  become: true
+  roles:
+    - role: kubernetes

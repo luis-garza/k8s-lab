@@ -1,0 +1,11 @@
+entryPoints:
+  traefik:
+    address: ':{{ traefik_port_api }}'
+  kubernetes:
+    address: ':{{ traefik_port_kubernetes }}'
+providers:
+  file:
+    filename: '/etc/traefik/kubernetes.yml'
+api:
+  dashboard: true
+  insecure: true

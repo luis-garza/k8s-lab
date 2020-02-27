@@ -1,0 +1,41 @@
+---
+- name: Update system packages
+  apt:
+    upgrade: dist
+    update_cache: yes
+    autoremove: yes
+
+- name: Install system packages
+  apt:
+    name: '{{ item }}'
+    state: present
+    autoremove: yes
+  with_items:
+    - vim
+    - curl
+    - python-pip
+    - apt-transport-https
+    - ca-certificates
+    - software-properties-common
+
+- name: Remove swap from /etc/fstab
+  mount:
+    name: '{{ item }}'
+    fstype: swap
+    state: absent
+  with_items:
+    - swap
+    - none
+
+- name: Disable swap
+  command: 'swapoff -a'
+  when: 'ansible_swaptotal_mb > 0'
+
+- name: Add hosts to /etc/hosts
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '^.*	{{ hostvars[item].inventory_hostname }}	{{ hostvars[item].inventory_hostname_short }}$'
+    line: '{{ hostvars[item].ansible_all_ipv4_addresses | ipaddr(network_cidr) | first }}	{{ hostvars[item].inventory_hostname }}	{{ hostvars[item].inventory_hostname_short }}'
+    state: present
+    insertafter: 'EOF'
+  with_items: '{{ groups.all }}'

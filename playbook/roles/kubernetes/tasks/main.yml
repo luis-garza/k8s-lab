@@ -1,0 +1,57 @@
+---
+- name: Add Google GPG key
+  apt_key:
+    url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+    state: present
+
+- name: Add Kubernetes repository
+  apt_repository:
+    repo: deb http://apt.kubernetes.io kubernetes-xenial main
+    state: present
+
+- name: Install Kubernetes packages
+  apt:
+    update_cache: yes
+    name: '{{ item }}'
+    state: present
+    autoremove: yes
+  with_items:
+    - kubelet
+    - kubeadm
+    - kubectl
+
+- name: Configure node ip
+  lineinfile:
+    dest: /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+    regexp: 'KUBELET_EXTRA_ARGS='
+    line: 'Environment="KUBELET_EXTRA_ARGS=--node-ip={{ ansible_all_ipv4_addresses | ipaddr(network_cidr) | first }}"'
+    state: present
+    insertafter: '\[Service\]'
+  register: node_ip
+
+- name: Restart kubelet
+  service:
+    name: kubelet
+    state: restarted
+    daemon_reload: yes
+  when: node_ip.changed
+
+- name: Setup kubectl completion
+  lineinfile:
+    dest: /home/{{ ansible_user }}/.bashrc
+    regexp: '^source <\(kubectl completion bash\)$'
+    line: source <(kubectl completion bash)
+    state: present
+    insertafter: EOF
+
+- name: Initialize first Kubernetes master
+  include_tasks: init-master.yml
+  when: inventory_hostname in groups.master[0]
+
+- name: Join Kubernetes masters
+  include_tasks: join-master.yml
+  when: inventory_hostname in groups.master[1:]
+
+- name: Join Kubernetes nodes
+  include_tasks: join-node.yml
+  when: inventory_hostname in groups.node
